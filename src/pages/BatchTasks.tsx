@@ -16,6 +16,7 @@ import { useToast } from '../components/ui/use-toast';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
+import { useAuth } from '../contexts/AuthContext';
 
 // 创建简单的 Card 组件替代
 const Card = ({ children, className }: { children: React.ReactNode; className?: string }) => (
@@ -69,6 +70,7 @@ const Checkbox = ({
 export default function BatchTasks() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
   const [batchName, setBatchName] = useState('');
@@ -79,7 +81,9 @@ export default function BatchTasks() {
   useEffect(() => {
     const fetchTasks = async () => {
       try {
-        const { tasks: fetchedTasks } = await getTasks(1, 100); // 获取所有任务
+        if (!user) return;
+        const userId = parseInt(user.id, 10);
+        const { tasks: fetchedTasks } = await getTasks(1, 100, userId); // 获取所有任务
         setTasks(fetchedTasks);
       } catch (error) {
         toast({
@@ -91,7 +95,7 @@ export default function BatchTasks() {
     };
 
     fetchTasks();
-  }, [toast]);
+  }, [toast, user]);
 
   const handleTaskSelect = (taskId: string) => {
     setSelectedTasks(prev => {
@@ -113,6 +117,15 @@ export default function BatchTasks() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!user) {
+      toast({
+        title: "未登录",
+        description: "请先登录再创建批量任务。",
+        variant: "destructive",
+      });
+      return;
+    }
     
     if (selectedTasks.length === 0) {
       toast({

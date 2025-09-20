@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getTasksFromStorage, updateTaskInStorage } from '../lib/taskStorage';
+import { db } from '../lib/db';
+import type { Task } from '../types';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 验证请求来自 Vercel Cron
@@ -10,17 +11,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // 获取所有激活的任务
-    const tasks = getTasksFromStorage();
-    const activeTasks = tasks.filter((task: any) => task.status === 'active');
+    const now = new Date();
+    const result = await db.query(
+      `SELECT * FROM tasks WHERE status = 'active' AND next_run <= $1`,
+      [now]
+    );
+    
+    const activeTasks: Task[] = result.rows.map((row: any) => ({
+      id: row.id.toString(),
+      url: row.url,
+      interval: row.interval,
+      description: row.description,
+      status: row.status,
+      lastRun: row.last_run ? row.last_run.toISOString() : undefined,
+      nextRun: row.next_run ? row.next_run.toISOString() : undefined,
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString(),
+    }));
     
     // 执行每个激活的任务
     const results = await Promise.all(
-      activeTasks.map(async (task: any) => {
+      activeTasks.map(async (task) => {
         try {
-          // 检查是否到了执行时间
-          const now = new Date();
-          const nextRun = new Date(task.nextRun);
-          
           // 如果是批量任务，特殊处理
           if (task.url.startsWith('batch://')) {
             // 执行批量任务
@@ -47,10 +59,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const nextRunTime = new Date(now.getTime() + task.interval * 60000);
             
             // 更新任务的执行时间
-            updateTaskInStorage(task.id, {
-              lastRun: now.toISOString(),
-              nextRun: nextRunTime.toISOString()
-            });
+            await db.query(
+              `UPDATE tasks 
+               SET last_run = $1, next_run = $2, updated_at = CURRENT_TIMESTAMP
+               WHERE id = $3`,
+              [now, nextRunTime, task.id]
+            );
             
             console.log(`Batch task ${task.id} executed with results:`, batchResults);
             
@@ -62,36 +76,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             };
           } else {
             // 普通任务处理
-            if (now >= nextRun) {
-              // 执行实际的 HTTP 请求
-              const response = await fetch(task.url, { method: 'GET' });
-              const status = response.ok ? 'success' : 'error';
-              
-              // 计算下次执行时间
-              const nextRunTime = new Date(now.getTime() + task.interval * 60000);
-              
-              // 更新任务的执行时间
-              updateTaskInStorage(task.id, {
-                lastRun: now.toISOString(),
-                nextRun: nextRunTime.toISOString()
-              });
-              
-              console.log(`Task ${task.id} executed with status: ${status}`);
-              
-              return {
-                taskId: task.id,
-                status,
-                timestamp: now.toISOString()
-              };
-            } else {
-              // 还没到执行时间
-              return {
-                taskId: task.id,
-                status: 'pending',
-                timestamp: now.toISOString(),
-                message: 'Not time to run yet'
-              };
-            }
+            // 执行实际的 HTTP 请求
+            const response = await fetch(task.url, { method: 'GET' });
+            const status = response.ok ? 'success' : 'error';
+            
+            // 计算下次执行时间
+            const nextRunTime = new Date(now.getTime() + task.interval * 60000);
+            
+            // 更新任务的执行时间
+            await db.query(
+              `UPDATE tasks 
+               SET last_run = $1, next_run = $2, updated_at = CURRENT_TIMESTAMP
+               WHERE id = $3`,
+              [now, nextRunTime, task.id]
+            );
+            
+            console.log(`Task ${task.id} executed with status: ${status}`);
+            
+            return {
+              taskId: task.id,
+              status,
+              timestamp: now.toISOString()
+            };
           }
         } catch (error) {
           console.error(`Task ${task.id} failed:`, error);

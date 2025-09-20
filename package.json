@@ -22,6 +22,7 @@
     "@radix-ui/react-toast": "^1.2.15",
     "@types/node": "^24.5.2",
     "@vercel/node": "^5.3.22",
+    "@vercel/postgres": "^0.10.0",
     "class-variance-authority": "^0.7.1",
     "lucide-react": "^0.544.0",
     "react": "^19.1.1",

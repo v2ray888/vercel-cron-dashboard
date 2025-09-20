@@ -6,12 +6,14 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { useToast } from '../components/ui/use-toast';
 import { getTask, createTask, updateTask } from '../api/tasks';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function TaskForm() {
   const { id } = useParams();
   const isEditing = !!id;
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   
   const [url, setUrl] = useState('');
   const [interval, setInterval] = useState(5);
@@ -22,7 +24,9 @@ export default function TaskForm() {
     if (isEditing && id) {
       const fetchTask = async () => {
         try {
-          const task = await getTask(id);
+          if (!user) return;
+          const userId = parseInt(user.id, 10);
+          const task = await getTask(id, userId);
           if (task) {
             setUrl(task.url);
             setInterval(task.interval);
@@ -39,10 +43,21 @@ export default function TaskForm() {
 
       fetchTask();
     }
-  }, [id, isEditing, toast]);
+  }, [id, isEditing, toast, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!user) {
+      toast({
+        title: "未登录",
+        description: "请先登录再创建任务。",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const userId = parseInt(user.id, 10);
     
     try {
       if (isEditing && id) {
@@ -51,7 +66,7 @@ export default function TaskForm() {
           url,
           interval,
           description,
-        });
+        }, userId);
         
         if (updatedTask) {
           toast({
@@ -72,7 +87,7 @@ export default function TaskForm() {
           url,
           interval,
           description,
-        });
+        }, userId);
         
         toast({
           title: "任务创建成功",

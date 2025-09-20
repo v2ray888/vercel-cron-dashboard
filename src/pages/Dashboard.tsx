@@ -20,10 +20,12 @@ import {
 import { Badge } from '../components/ui/badge';
 import { useToast } from '../components/ui/use-toast';
 import { getTasks, deleteTask, toggleTaskStatus } from '../api/tasks';
+import { useAuth } from '../contexts/AuthContext';
 import type { Task } from '../types';
 
 export default function Dashboard() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -32,7 +34,9 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchTasks = async () => {
       try {
-        const { tasks: fetchedTasks, totalPages } = await getTasks(currentPage, 5);
+        if (!user) return;
+        const userId = parseInt(user.id, 10);
+        const { tasks: fetchedTasks, totalPages } = await getTasks(currentPage, 5, userId);
         setTasks(fetchedTasks);
         setTotalPages(totalPages);
       } catch (error) {
@@ -45,11 +49,13 @@ export default function Dashboard() {
     };
 
     fetchTasks();
-  }, [currentPage, toast]);
+  }, [currentPage, toast, user]);
 
   const handleDelete = async (id: string) => {
     try {
-      const success = await deleteTask(id);
+      if (!user) return;
+      const userId = parseInt(user.id, 10);
+      const success = await deleteTask(id, userId);
       if (success) {
         setTasks(tasks.filter(task => task.id !== id));
         toast({
@@ -74,7 +80,9 @@ export default function Dashboard() {
 
   const handleToggleStatus = async (id: string) => {
     try {
-      const updatedTask = await toggleTaskStatus(id);
+      if (!user) return;
+      const userId = parseInt(user.id, 10);
+      const updatedTask = await toggleTaskStatus(id, userId);
       if (updatedTask) {
         setTasks(tasks.map(task => 
           task.id === id ? updatedTask : task

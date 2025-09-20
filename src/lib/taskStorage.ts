@@ -1,53 +1,124 @@
-// 用于在 Vercel 函数和前端之间共享的任务存储逻辑
+import { db } from './db';
+import type { Task } from '../types';
 
 // localStorage 键名
 export const TASKS_STORAGE_KEY = 'cron-dashboard-tasks';
 
-// 从存储中获取任务数据（在 Vercel 函数中需要使用文件系统或其他存储）
-export function getTasksFromStorage(): any[] {
-  // 在服务器环境中，我们不能使用 localStorage
-  // 这里需要替换为实际的持久化存储，如数据库或文件系统
-  // 目前我们返回空数组，表示需要实现真实的存储
-  if (typeof window !== 'undefined') {
-    // 在浏览器环境中
-    try {
-      const stored = localStorage.getItem(TASKS_STORAGE_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch (error) {
-      console.error('从 localStorage 获取任务数据失败:', error);
-      return [];
-    }
-  } else {
-    // 在服务器环境中（Vercel 函数）
-    // 这里需要实现真实的存储逻辑
-    console.warn('服务器环境中需要实现真实的任务存储');
+// 从存储中获取任务数据
+export async function getTasksFromStorage(userId: number): Promise<Task[]> {
+  // 在服务器环境中使用数据库
+  try {
+    const result = await db.query(
+      'SELECT * FROM tasks WHERE user_id = $1 ORDER BY created_at DESC',
+      [userId]
+    );
+    
+    return result.rows.map(row => ({
+      id: row.id.toString(),
+      url: row.url,
+      interval: row.interval,
+      description: row.description,
+      status: row.status,
+      lastRun: row.last_run ? row.last_run.toISOString() : undefined,
+      nextRun: row.next_run ? row.next_run.toISOString() : undefined,
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString(),
+    }));
+  } catch (error) {
+    console.error('从数据库获取任务数据失败:', error);
     return [];
   }
 }
 
-// 将任务数据保存到存储（在 Vercel 函数中需要使用文件系统或其他存储）
-export function saveTasksToStorage(tasks: any[]): void {
-  if (typeof window !== 'undefined') {
-    // 在浏览器环境中
-    try {
-      localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasks));
-    } catch (error) {
-      console.error('保存任务数据到 localStorage 失败:', error);
+// 将任务数据保存到存储
+export async function saveTasksToStorage(tasks: Task[], userId: number): Promise<void> {
+  // 在服务器环境中使用数据库
+  try {
+    // 先删除用户的所有任务
+    await db.query('DELETE FROM tasks WHERE user_id = $1', [userId]);
+    
+    // 批量插入新任务
+    for (const task of tasks) {
+      await db.query(
+        `INSERT INTO tasks (user_id, url, interval, description, status, last_run, next_run, created_at, updated_at) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          userId,
+          task.url,
+          task.interval,
+          task.description,
+          task.status,
+          task.lastRun ? new Date(task.lastRun) : null,
+          task.nextRun ? new Date(task.nextRun) : null,
+          new Date(task.createdAt),
+          new Date(task.updatedAt)
+        ]
+      );
     }
-  } else {
-    // 在服务器环境中（Vercel 函数）
-    // 这里需要实现真实的存储逻辑
-    console.warn('服务器环境中需要实现真实的任务存储');
+  } catch (error) {
+    console.error('保存任务数据到数据库失败:', error);
   }
 }
 
 // 更新单个任务
-export function updateTaskInStorage(taskId: string, updateData: any): void {
-  const tasks = getTasksFromStorage();
-  const index = tasks.findIndex((task: any) => task.id === taskId);
-  
-  if (index !== -1) {
-    tasks[index] = { ...tasks[index], ...updateData, updatedAt: new Date().toISOString() };
-    saveTasksToStorage(tasks);
+export async function updateTaskInStorage(taskId: string, updateData: Partial<Task>, userId: number): Promise<void> {
+  try {
+    const updates: string[] = [];
+    const values: any[] = [];
+    let index = 1;
+    
+    // 构建更新语句
+    if (updateData.url !== undefined) {
+      updates.push(`url = $${index}`);
+      values.push(updateData.url);
+      index++;
+    }
+    
+    if (updateData.interval !== undefined) {
+      updates.push(`interval = $${index}`);
+      values.push(updateData.interval);
+      index++;
+    }
+    
+    if (updateData.description !== undefined) {
+      updates.push(`description = $${index}`);
+      values.push(updateData.description);
+      index++;
+    }
+    
+    if (updateData.status !== undefined) {
+      updates.push(`status = $${index}`);
+      values.push(updateData.status);
+      index++;
+    }
+    
+    if (updateData.lastRun !== undefined) {
+      updates.push(`last_run = $${index}`);
+      values.push(updateData.lastRun ? new Date(updateData.lastRun) : null);
+      index++;
+    }
+    
+    if (updateData.nextRun !== undefined) {
+      updates.push(`next_run = $${index}`);
+      values.push(updateData.nextRun ? new Date(updateData.nextRun) : null);
+      index++;
+    }
+    
+    // 总是更新 updated_at
+    updates.push(`updated_at = CURRENT_TIMESTAMP`);
+    
+    if (updates.length === 0) {
+      return;
+    }
+    
+    values.push(taskId, userId);
+    
+    await db.query(
+      `UPDATE tasks SET ${updates.join(', ')} 
+       WHERE id = $${index} AND user_id = $${index + 1}`,
+      values
+    );
+  } catch (error) {
+    console.error('更新任务失败:', error);
   }
 }

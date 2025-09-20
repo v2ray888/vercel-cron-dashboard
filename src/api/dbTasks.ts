@@ -5,7 +5,7 @@ import type { Task } from '../types';
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // 获取所有任务（带分页）
-export async function getTasks(page: number = 1, limit: number = 5, userId: number = 1): Promise<{ tasks: Task[]; totalPages: number; totalTasks: number }> {
+export async function getTasks(page: number = 1, limit: number = 5, userId: number): Promise<{ tasks: Task[]; totalPages: number; totalTasks: number }> {
   await delay(300); // 模拟网络延迟
   
   try {
@@ -25,7 +25,7 @@ export async function getTasks(page: number = 1, limit: number = 5, userId: numb
       [userId, limit, offset]
     );
     
-    const tasks = result.rows.map((row: any) => ({
+    const tasks = result.rows.map(row => ({
       id: row.id.toString(),
       url: row.url,
       interval: row.interval,
@@ -49,7 +49,7 @@ export async function getTasks(page: number = 1, limit: number = 5, userId: numb
 }
 
 // 获取单个任务
-export async function getTask(id: string, userId: number = 1): Promise<Task | undefined> {
+export async function getTask(id: string, userId: number): Promise<Task | undefined> {
   await delay(300); // 模拟网络延迟
   
   try {
@@ -62,7 +62,7 @@ export async function getTask(id: string, userId: number = 1): Promise<Task | un
       return undefined;
     }
     
-    const row: any = result.rows[0];
+    const row = result.rows[0];
     return {
       id: row.id.toString(),
       url: row.url,
@@ -81,7 +81,7 @@ export async function getTask(id: string, userId: number = 1): Promise<Task | un
 }
 
 // 创建任务
-export async function createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'lastRun' | 'nextRun'>, userId: number = 1): Promise<Task> {
+export async function createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'lastRun' | 'nextRun'>, userId: number): Promise<Task> {
   await delay(300); // 模拟网络延迟
   
   try {
@@ -99,7 +99,7 @@ export async function createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'upda
       ]
     );
     
-    const row: any = result.rows[0];
+    const row = result.rows[0];
     return {
       id: row.id.toString(),
       url: row.url,
@@ -118,7 +118,7 @@ export async function createTask(taskData: Omit<Task, 'id' | 'createdAt' | 'upda
 }
 
 // 更新任务
-export async function updateTask(id: string, taskData: Partial<Task>, userId: number = 1): Promise<Task | undefined> {
+export async function updateTask(id: string, taskData: Partial<Task>, userId: number): Promise<Task | undefined> {
   await delay(300); // 模拟网络延迟
   
   try {
@@ -184,7 +184,7 @@ export async function updateTask(id: string, taskData: Partial<Task>, userId: nu
       return undefined;
     }
     
-    const row: any = result.rows[0];
+    const row = result.rows[0];
     return {
       id: row.id.toString(),
       url: row.url,
@@ -203,7 +203,7 @@ export async function updateTask(id: string, taskData: Partial<Task>, userId: nu
 }
 
 // 删除任务
-export async function deleteTask(id: string, userId: number = 1): Promise<boolean> {
+export async function deleteTask(id: string, userId: number): Promise<boolean> {
   await delay(300); // 模拟网络延迟
   
   try {
@@ -220,7 +220,7 @@ export async function deleteTask(id: string, userId: number = 1): Promise<boolea
 }
 
 // 切换任务状态
-export async function toggleTaskStatus(id: string, userId: number = 1): Promise<Task | undefined> {
+export async function toggleTaskStatus(id: string, userId: number): Promise<Task | undefined> {
   await delay(300); // 模拟网络延迟
   
   try {
@@ -240,7 +240,7 @@ export async function toggleTaskStatus(id: string, userId: number = 1): Promise<
       return undefined;
     }
     
-    const row: any = result.rows[0];
+    const row = result.rows[0];
     return {
       id: row.id.toString(),
       url: row.url,
@@ -255,6 +255,34 @@ export async function toggleTaskStatus(id: string, userId: number = 1): Promise<
   } catch (error) {
     console.error('切换任务状态失败:', error);
     throw new Error('无法切换任务状态');
+  }
+}
+
+// 获取所有激活的任务（用于Cron执行）
+export async function getActiveTasks(): Promise<Task[]> {
+  await delay(300); // 模拟网络延迟
+  
+  try {
+    const now = new Date();
+    const result = await db.query(
+      `SELECT * FROM tasks WHERE status = 'active' AND next_run <= $1`,
+      [now]
+    );
+    
+    return result.rows.map(row => ({
+      id: row.id.toString(),
+      url: row.url,
+      interval: row.interval,
+      description: row.description,
+      status: row.status,
+      lastRun: row.last_run ? row.last_run.toISOString() : undefined,
+      nextRun: row.next_run ? row.next_run.toISOString() : undefined,
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString(),
+    }));
+  } catch (error) {
+    console.error('获取激活任务失败:', error);
+    throw new Error('无法获取激活任务');
   }
 }
 
@@ -275,7 +303,7 @@ export async function updateTaskExecutionTime(id: string, lastRun: string, nextR
       return undefined;
     }
     
-    const row: any = result.rows[0];
+    const row = result.rows[0];
     return {
       id: row.id.toString(),
       url: row.url,
