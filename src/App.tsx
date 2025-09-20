@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import TaskForm from './components/TaskForm';
+import BatchTasks from './pages/BatchTasks';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -21,6 +22,7 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/tasks/new" element={<ProtectedRoute><TaskForm /></ProtectedRoute>} />
               <Route path="/tasks/:id/edit" element={<ProtectedRoute><TaskForm /></ProtectedRoute>} />
+              <Route path="/batch-tasks" element={<ProtectedRoute><BatchTasks /></ProtectedRoute>} />
             </Routes>
           </main>
           <Toaster />

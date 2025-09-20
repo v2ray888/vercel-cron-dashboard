@@ -109,9 +109,14 @@ export default function Dashboard() {
             管理您的定时任务
           </p>
         </div>
-        <Link to="/tasks/new">
-          <Button>创建新任务</Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link to="/batch-tasks">
+            <Button variant="outline">批量任务</Button>
+          </Link>
+          <Link to="/tasks/new">
+            <Button>创建新任务</Button>
+          </Link>
+        </div>
       </div>
 
       <div className="rounded-md border">

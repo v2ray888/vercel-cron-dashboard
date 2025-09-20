@@ -17,6 +17,9 @@ export default function Header() {
               <Link to="/tasks/new" className="text-sm font-medium">
                 创建任务
               </Link>
+              <Link to="/batch-tasks" className="text-sm font-medium">
+                批量任务
+              </Link>
               <Button variant="outline" size="sm" onClick={logout}>
                 登出
               </Button>
